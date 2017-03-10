@@ -16,7 +16,7 @@ public class Point {
 
   public String(Render) {
     if (type == 4) {
-      return NAMES[type] + "/" + owner.name;
+      return NAMES[type] + "/" + owner.name; // todo: use id here instead
     }
     return NAMES[type];
   }

@@ -1,0 +1,87 @@
+body {
+    background: #7799aa;
+    height: 100vh;
+    padding: 0;
+    margin: 0;
+}
+.watch, .play {
+    float: left;
+    height: 140px;
+    background: #446677;
+    color: white;
+    font-size: 18px;
+    text-align: center;
+    display: table;
+    margin: 10px;
+    border: 1px solid black;
+    padding: 10px;
+    overflow: hidden;
+}
+.play {
+    width: 140px;
+}
+.watch {
+    width: 0px;
+    opacity: 0.2;
+}
+.watch p {
+    position: relative;
+    display: table-cell;
+    vertical-align: middle;
+}
+.watch.easein {
+    -webkit-transition: .5s;
+    -moz-transition: .5s;
+    -ms-transition: .5s;
+    -o-transition: .5s;
+    transition: all .5s;
+    width: 140px;
+    opacity: 1;
+}
+.watch.easeout {
+    -webkit-transition: .5s;
+    -moz-transition: .5s;
+    -ms-transition: .5s;
+    -o-transition: .5s;
+    transition: all .5s;
+    width: 300px;
+    opacity: 0;
+}
+.play form {
+    display: table-cell;
+    vertical-align: middle;
+}
+form input {
+    width: 100px;
+    margin: 3px;
+    text-align: center;
+}
+#players {
+    float: right;
+    clear: right;
+    border: 1px solid #223355;
+    background: #446677;
+    width: 200px;
+    height: 200px;
+    margin: 10px;
+}
+#stats {
+    float: right;
+    clear: right;
+    border: 1px solid #223355;
+    background: #446677;
+    width: 200px;
+    height: 400px;
+    margin: 10px;
+}
+#grid {
+    float: left;
+    width: 100%;
+    height: 95%;
+    margin: 10px 0px 0px 10px;
+    padding: 0;
+}
+canvas {
+    margin: 0;
+    padding: 0;
+}

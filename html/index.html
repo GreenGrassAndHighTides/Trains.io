@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Trains.io</title>
+<link rel="stylesheet" type="text/css" href="theme.css">
+<script>
+var splash;
+window.onload = function() {
+    splash = document.getElementById("splash");
+    console.log("connecting to spectator websocket...");
+    var ws = new WebSocket('ws://' + document.location.host + '/ws/games');
+    ws.onopen = function() { };
+    ws.onclose = function() { };
+    ws.onmessage = function(msg) {
+        console.log("message received: " + msg.data);
+        var m = JSON.parse(msg.data);
+        switch (m.action) {
+            case 'ADD':
+                addGame(m.id);
+                break;
+            case 'DEL':
+                delGame(m.id);
+                break;
+        }
+    };
+}
+function addGame(id) {
+    var div = document.createElement('div');
+    div.className = "watch";
+    div.id = "game_"+id;
+    splash.appendChild(div);
+    setTimeout(function(){ 
+        div.classList.add("easein");
+        div.style.width = "140px";
+        }, 1);
+    setTimeout(function(){
+        div.innerHTML = 
+            '<p>Game ' + id + '<br>' +
+            '<a href="/watch.html?id='+id+'">(watch)</a></p>';
+        }, 350);
+}
+function delGame(id) {
+    var div = document.getElementById("game_"+id);
+    if (!div)
+        return;
+    div.innerHTML = "";
+    div.style.width = "0px";
+    div.style.padding = "10px 0px";
+    div.style.opacity = 0.3;
+    setTimeout(function(){ splash.removeChild(div); }, 600);
+}
+</script>
+</head>
+<body>
+    <a href="/shutdown">shutdown</a><br>
+    <div id="splash">
+        <div class="play">
+            <form action="/play.html" method="get">
+                <input type="text" name="name" value="anonymous"><br>
+                <input type="submit" value="Play!">
+            </form>
+        </div>
+    </div>
+</body>
+</html>

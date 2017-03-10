@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Trains.io</title>
+<link rel="stylesheet" type="text/css" href="theme.css">
+<script>
+function getQueryVariable(variable) {
+    var query = window.location.search.substring(1);
+    var vars = query.split('&');
+    for (var i = 0; i < vars.length; i++) {
+        var pair = vars[i].split('=');
+        if (decodeURIComponent(pair[0]) === variable)
+            return decodeURIComponent(pair[1]);
+    }
+    return null
+}
+var grid;
+var canvas;
+var players;
+var stats;
+var name;
+var ws;
+window.onload = function() {
+    loadImage("terrain.png", prepTerrain);
+    grid = document.getElementById("grid");
+    canvas = document.getElementById("canvas");
+    players = document.getElementById("players");
+    stats = document.getElementById("stats");
+    players.innerHTML = "pending...";
+    stats.innerHTML = "soon...";
+    grid.style.width = (grid.offsetWidth - players.offsetWidth - 40) + "px";
+    name = getQueryVariable("name") || "anonymous";
+    console.log("connecting to game websocket as " + name + " ...");
+    ws = new WebSocket('ws://' + document.location.host + '/ws/play?name='+name);
+    ws.onopen = function() {
+        console.log("connection opened, logging in");
+        ws.send(name);
+    };
+    ws.onclose = function() {
+        console.log("lost connection");
+    };
+    ws.onmessage = processWelcome;
+}
+var game;
+var sz;
+var ctx;
+function processWelcome(msg) {
+    // console.log("message received: " + msg.data);
+    var m = JSON.parse(msg.data);
+    if (m.action != "JOINED") {
+        console.log("Oops, expecting JOINED, got", m);
+        ws.close();
+        return;
+    }
+    game = m;
+    sz = Math.floor(Math.min(grid.offsetWidth / game.gridWidth,
+            grid.offsetHeight / game.gridHeight));
+    ws.onmessage = processUpdate;
+    canvas.width = sz*game.gridWidth;
+    canvas.height = sz*game.gridHeight;
+    ctx = canvas.getContext("2d");
+    renderPlayers();
+    renderStats();
+    render();
+}
+function renderPlayers() {
+    var s = "Players:";
+    for (var i = 0; i < game.players.length; i++) {
+        var p = game.players[i];
+        s += "<br>";
+        if (p.id == game.playerId)
+            s += "<b>";
+        s += p.name + " (id="+p.id+")";
+        if (p.id == game.playerId)
+            s += "</b>";
+    }
+    players.innerHTML = s;
+}
+var RESOURCES = [ "Money", "Steel", "Wood", "Gunpowder", "Coal" ];
+function renderStats() {
+    var t = game.stats.trim().split("/");
+    if (!t || t.length < 5) {
+        stats.innerHTML = "error";
+        return;
+    }
+    var s = "Available Resources:<br>";
+    s += "<ul>";
+    for (var i = 0; i < 5; i++) {
+        s += "<li>" + RESOURCES[i] + ": " + t[i] + "</li>";
+    }
+    stats.innerHTML = s;
+}
+function processUpdate(msg) {
+    var m = JSON.parse(msg.data);
+    if (m.action === "UPDATE") {
+        game.grid = m.grid;
+        game.tracks = m.tracks;
+        game.stats = m.stats;
+        renderStats();
+        render();
+    } else if (m.action === "WINNER") {
+        var winner = "unknown?!";
+        for (var i = 0; i < game.players.length; i++) {
+            var p = game.players[i];
+            if (p.id === m.id) {
+                winner = p;
+                break;
+            }
+        }
+        if (m.id == game.playerId)
+            alert("You Win!\nCongrats " + winner.name + "!");
+        else
+            alert("Game Over!\nAnd the winner is... " +  winner.name + "!");
+    }
+}
+function loadImage(imgFile, onload){
+    var img = new Image();
+    var fired = false;
+    img.onload = function(evt) {
+        if (fired) return;
+        fired = true;
+        onload(evt.target);
+    };
+    img.src = imgFile;
+    if (img.complete) {
+        fired = true;
+        onload(img);
+    }
+}
+// var terrainCanvas;
+// var terrainCtx;
+// var blitCanvas;
+// var blitCtx;
+var blitImg;
+var blitReady = false;
+function prepTerrain(img) {
+    // blitCanvas = createOffscreenCanvas(8,8);
+    // blitCtx = blitCanvas.getContext('2d');
+    // terrainCanvas = createOffscreenCanvas(img.width, img.height);    
+    // terrainCtx = terrainCanvas.getContext('2d');
+    // terrainCtx.drawImage(img, 0,0);
+    // setTimeout(function() { blitImg = img; }, 100);
+    blitImg = img;
+    blitReady = true;
+}
+function render() {
+    if (!blitReady) {
+        setTimeout(render, 100);
+        return;
+    }
+    var s = game.grid.trim().split(" ");
+    var g = new Array(game.gridWidth);
+    var c = new Array(game.gridWidth);
+    var i = 0;
+    for (var col = 0; col < game.gridWidth; col++) {
+        g[col] = new Array(game.gridHeight);
+        c[col] = new Array(game.gridHeight);
+    }
+    for (var col = 0; col < game.gridWidth; col++) {
+        for (var row = 0; row < game.gridHeight; row++) {
+            g[col][row] = s[i++];
+            c[col][row] = 0;
+        }
+    }
+    for (var col = 0; col < game.gridWidth; col++) {
+        for (var row = 0; row < game.gridHeight; row++) {
+            var t = g[col][row];
+            if (t === "Blank" || t === "City" || t.startsWith("Base/"))
+                paint(col, row, BLANK);
+        }
+    }
+    s = game.tracks.trim().split(" ");
+    for (i = 0; i < s.length; i++) {
+        var t = s[i].split("/");
+        if (t.length != 5) {
+            console.log("oops, bad track", s[i]);
+            continue;
+        }
+        var x0 = parseInt(t[0]);
+        var y0 = parseInt(t[1]);
+        var x1 = parseInt(t[2]);
+        var y1 = parseInt(t[3]);
+        var owner = parseInt(t[4]);
+        if ((x0 != x1) === (y0 != y1)) {
+            console.log("oops, bad track", s[i]);
+            continue;
+        }
+        if (x0 > x1) {
+            var xx = x0;
+            x0 = x1;
+            x1 = xx;
+        } else if (y0 > y1) {
+            var yy = y0;
+            y0 = y1;
+            y1 = yy;
+        }
+        if (x0 != x1) {
+            c[x0][y0] |= 1; // right
+            c[x1][y1] |= 2; // left
+        } else {
+            c[x0][y0] |= 4; // down
+            c[x1][y1] |= 8; // up
+        }
+    }
+    for (var col = 0; col < game.gridWidth; col++) {
+        for (var row = 0; row < game.gridHeight; row++) {
+            var cc = c[col][row];
+            if (cc != 0) {
+                paint(col, row, TRACK[cc]);
+            }
+            var t = g[col][row];
+            if (t === "Mountain")
+                paint(col, row, MOUNTAIN[countNbrs(col, row, g, t)]);
+            else if (t === "Water")
+                paint(col, row, WATER[countNbrs(col, row, g, t)]);
+            else if (t === "City")
+                paint(col, row, CITY);
+            else if (t.startsWith("Base/")) {
+                paint(col, row, BASE); // todo: add color
+            }
+        }
+    }
+}
+function countNbrs(x, y, g, t) {
+    var c = 0;
+    if (x+1 < game.gridWidth && g[x+1][y] == t)
+        c |= 1; // right
+    if (x-1 >= 0 && g[x-1][y] == t)
+        c |= 2; // left
+    if (y+1 < game.gridHeight && g[x][y+1] == t)
+        c |= 4; // down
+    if (y-1 >= 0 && g[x][y-1] == t)
+        c |= 8; // up
+    if (c < 0 || c > 15)
+        console.log("oops, bad nbr count", c);
+    return c;
+}
+var BLANK = [0, 0];
+var BASE = [0, 1];
+var CITY = [1, 1];
+var WATER = [
+    [4, 0], [5, 0], [7, 0], [6, 0],
+    [4, 1], [5, 1], [7, 1], [6, 1],
+    [4, 3], [5, 3], [7, 3], [6, 3],
+    [4, 2], [5, 2], [7, 2], [6, 2]
+];
+var MOUNTAIN = [
+    [8, 0], [9, 0], [11, 0], [10, 0],
+    [8, 1], [9, 1], [11, 1], [10, 1],
+    [8, 3], [9, 3], [11, 3], [10, 3],
+    [8, 2], [9, 2], [11, 2], [10, 2]
+];
+var TRACK = [
+    [12, 0], [13, 0], [15, 0], [14, 0],
+    [12, 1], [13, 1], [15, 1], [14, 1],
+    [12, 3], [13, 3], [15, 3], [14, 3],
+    [12, 2], [13, 2], [15, 2], [14, 2]
+];
+function paint(x, y, tile) {
+    var tx = tile[0];
+    var ty = tile[1];
+    ctx.drawImage(blitImg, tx*8, ty*8, 8, 8, x*sz, y*sz, sz, sz);
+    //var i = blitCtx.getImageData(tx*8,ty*8,8,8);    
+    // ctx.putImageData(i,x*8,y*8);
+    // ctx.fillRect(x*8, y*8, 5, 5);
+}
+function createOffscreenCanvas(width, height){
+    var canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+}
+</script>
+</head>
+<body>
+<div style="float: right;"><a href="/shutdown">shutdown</a></div>
+    <div id="grid">
+        <canvas id="canvas" width="10" height="10"></canvas>
+    </div>
+    <div id="players">
+        Players go here...
+    </div>
+    <div id="stats">
+        Stats go here...
+    </div>
+</body>
+</html>
